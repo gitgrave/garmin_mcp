@@ -1966,3 +1966,106 @@ async def test_get_scheduled_workouts_exposes_scheduled_id(app_with_workouts, mo
     workout = result_data["scheduled_workouts"][0]
     assert workout["scheduled_workout_id"] == 555
     assert workout["workout_id"] == 123456
+
+
+# ---------------------------------------------------------------------------
+# update_workout (delegates to the library's native update_workout)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_workout_tool(app_with_workouts, mock_garmin_client):
+    """update_workout delegates to garmin_client.update_workout(id, data)."""
+    import json as json_module
+
+    # Garmin echoes the stored document; a server-normalized name should win.
+    mock_garmin_client.update_workout.return_value = {
+        "workoutId": 123456,
+        "workoutName": "Edited Run (normalized)",
+    }
+    workout_data = {
+        "workoutName": "Edited Run",
+        "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+    }
+
+    result = await app_with_workouts.call_tool(
+        "update_workout",
+        {"workout_id": 123456, "workout_data": workout_data},
+    )
+
+    args, kwargs = mock_garmin_client.update_workout.call_args
+    assert args[0] == 123456
+    assert args[1] == workout_data
+
+    result_data = json_module.loads(result[0][0].text)
+    assert result_data["status"] == "success"
+    assert result_data["workout_id"] == 123456
+    assert result_data["name"] == "Edited Run (normalized)"  # from server response
+
+
+@pytest.mark.asyncio
+async def test_update_workout_reuses_validators(app_with_workouts, mock_garmin_client):
+    """Invalid payloads are rejected before the library call, like upload_workout."""
+    workout_data = _running_workout_with_steps([{
+        "type": "ExecutableStepDTO",
+        "stepOrder": 1,
+        "stepType": {"stepTypeId": 4, "stepTypeKey": "recovery"},
+        "endCondition": {"conditionTypeId": 4, "conditionTypeKey": "heart.rate"},
+        "endConditionValue": 145.0,
+        "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
+    }])
+
+    result = await app_with_workouts.call_tool(
+        "update_workout",
+        {"workout_id": 123456, "workout_data": workout_data},
+    )
+
+    message = result[0][0].text
+    assert "Error updating workout" in message
+    mock_garmin_client.update_workout.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_workout_handles_empty_response(
+    app_with_workouts, mock_garmin_client
+):
+    """An empty (204) response falls back to the values we sent."""
+    import json as json_module
+
+    mock_garmin_client.update_workout.return_value = {}
+    workout_data = {
+        "workoutName": "Edited Run",
+        "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+    }
+
+    result = await app_with_workouts.call_tool(
+        "update_workout",
+        {"workout_id": 123456, "workout_data": workout_data},
+    )
+
+    result_data = json_module.loads(result[0][0].text)
+    assert result_data["status"] == "success"
+    assert result_data["workout_id"] == 123456
+    assert result_data["name"] == "Edited Run"
+
+
+@pytest.mark.asyncio
+async def test_update_workout_surfaces_library_error(
+    app_with_workouts, mock_garmin_client
+):
+    """A library error (invalid id, HTTP failure) surfaces as an error string."""
+    mock_garmin_client.update_workout.side_effect = ValueError(
+        "workout_id must be a positive integer, got: 0"
+    )
+    workout_data = {
+        "workoutName": "Edited Run",
+        "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+    }
+
+    result = await app_with_workouts.call_tool(
+        "update_workout",
+        {"workout_id": 123456, "workout_data": workout_data},
+    )
+
+    message = result[0][0].text
+    assert "Error updating workout" in message
+    assert "positive integer" in message

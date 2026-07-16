@@ -4,7 +4,9 @@
 
 This Model Context Protocol (MCP) server connects to Garmin Connect and exposes your fitness and health data to Claude and other MCP-compatible clients.
 
-Garmin's API is accessed via the awesome [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library.
+Garmin's API is accessed via the awesome [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library. This project uses a [gitgrave fork](https://github.com/gitgrave/python-garminconnect) of v0.3.6 that adds a native `update_workout` method (see "Editing a workout in place" below); everything else tracks upstream. Requires Python 3.12+ (the library's floor since 0.3.3).
+
+> **Dev note:** `[tool.uv.sources]` in `pyproject.toml` currently points `garminconnect` at a **local editable checkout** of the fork (`../python-garminconnect`, a sibling directory). Clone the fork next to this repo, or swap that source for a git tag / PyPI release once the `update_workout` change is upstreamed.
 
 ## Features
 
@@ -25,7 +27,7 @@ Garmin's API is accessed via the awesome [python-garminconnect](https://github.c
 
 ### Tool Coverage
 
-This MCP server implements **110+ tools** covering ~90% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.2):
+This MCP server implements **110+ tools** covering ~90% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.6, gitgrave fork):
 
 - ✅ Activity Management (20 tools) - includes write tools for type, description, event type, perceived effort, and feel
 - ✅ Health & Wellness (31 tools) - includes custom lightweight summary tools
@@ -180,6 +182,15 @@ schedule_workout(workout_id=1560092011, date="2026-05-06")
 ```
 
 After syncing your watch, the workout appears on the Forerunner 965 calendar.
+
+### Editing a workout in place
+
+`update_workout(workout_id, workout_data)` overwrites an existing workout while
+keeping the **same** workout ID, so any calendar schedules pointing at it stay
+valid (unlike delete + re-upload, which mints a new ID). Garmin replaces the
+whole workout, so `workout_data` must be the complete structure — same format as
+`upload_workout`. Typical flow: `get_workout_by_id` → edit the JSON →
+`update_workout`.
 
 ### Raw `upload_workout` end conditions
 

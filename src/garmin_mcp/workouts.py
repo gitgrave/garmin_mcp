@@ -733,6 +733,44 @@ def register_tools(app):
             return f"Error uploading workout: {str(e)}"
 
     @app.tool()
+    async def update_workout(workout_id: int, workout_data: dict) -> str:
+        """Update an existing workout in place (keeps the same workout ID).
+
+        Unlike delete + re-upload, this preserves the workout ID so any calendar
+        schedules pointing at it remain valid.
+
+        Garmin replaces the WHOLE workout, so workout_data must be the complete
+        structure — same format as upload_workout (see that tool for the full DTO
+        reference on steps, targets, sport types, and end conditions). Typical flow:
+        fetch with get_workout_by_id, edit the JSON, pass it here.
+
+        Args:
+            workout_id: ID of the existing workout to overwrite.
+            workout_data: Complete workout structure (name, sport type, segments, steps).
+        """
+        try:
+            _fix_hr_zone_steps(workout_data)
+            _validate_end_condition_steps(workout_data)
+            _validate_target_type_steps(workout_data)
+
+            result = garmin_client.update_workout(workout_id, workout_data)
+
+            # Prefer Garmin's returned document (e.g. server-normalized name) when
+            # the PUT echoes one back. Garmin often returns 204/empty ({}), in which
+            # case we fall back to the values we sent.
+            result = result if isinstance(result, dict) else {}
+            curated = {
+                "status": "success",
+                "workout_id": result.get("workoutId") or workout_id,
+                "name": result.get("workoutName") or workout_data.get("workoutName"),
+                "message": "Workout updated successfully",
+            }
+            curated = {k: v for k, v in curated.items() if v is not None}
+            return json.dumps(curated, indent=2)
+        except Exception as e:
+            return f"Error updating workout: {str(e)}"
+
+    @app.tool()
     async def upload_workouts(workouts: list[dict]) -> str:
         """Upload multiple workouts from JSON data in a single call
 
