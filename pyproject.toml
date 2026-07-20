@@ -2,6 +2,9 @@
 requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [project]
 name = "garmin-mcp"
 version = "0.1.0"
@@ -10,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "python-dotenv==1.2.2",
-    "garminconnect>=0.3.6",
+    "garminconnect @ git+https://github.com/gitgrave/python-garminconnect@f2bc2432b7b461f038b31192d77c7d17cae51591",
     "requests==2.33.0",
     "mcp>=1.23.0",
     "fitparse>=1.2.0",
@@ -19,12 +22,6 @@ dependencies = [
 [project.scripts]
 garmin-mcp = "garmin_mcp:main"
 garmin-mcp-auth = "garmin_mcp.auth_cli:main"
-
-[tool.uv.sources]
-# Local editable checkout of the fork that adds update_workout. Sibling repo
-# under the same parent dir. Swap for a git tag or PyPI release once the
-# python-garminconnect change is upstreamed/published.
-garminconnect = { path = "../python-garminconnect", editable = true }
 
 [tool.uv]
 dev-dependencies = [
