@@ -155,6 +155,10 @@ Creates a strength workout from a list of exercises. Unknown names fall back to 
 
 Returns: `{"status": "success", "workout_id": 1234567890, ...}`
 
+### `get_exercise_types`
+
+Lists Garmin's strength-exercise catalog (~1500 exercises across 47 categories) so you can build strength steps with valid `category` / `exerciseName` keys. Call with no argument for the category list, then pass a `category` (e.g. `"BENCH_PRESS"`) to get its exercises with display name, target muscles, and required equipment. Backed by data bundled in the `garminconnect` fork (regenerated via its `scripts/refresh_exercises.py`); no extra auth.
+
 ### `schedule_week`
 
 Schedules multiple workouts in one call.

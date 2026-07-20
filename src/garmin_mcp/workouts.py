@@ -536,6 +536,61 @@ def register_tools(app):
             return f"Error retrieving workouts: {str(e)}"
 
     @app.tool()
+    async def get_exercise_types(category: Optional[str] = None) -> str:
+        """List Garmin's strength-exercise catalog for building strength workouts.
+
+        Returns the valid `category` and `exerciseName` keys accepted by
+        upload_workout / create_strength_workout, plus each exercise's display
+        name, target muscles, and required equipment.
+
+        Call with no argument first to get the list of categories (with exercise
+        counts), then pass a specific category to get its exercises — the full
+        catalog is large (~1500 exercises), so it is only expanded per category.
+
+        Args:
+            category: Category key (e.g. "BENCH_PRESS", case-insensitive). Omit
+                to list all categories.
+        """
+        try:
+            if category is None:
+                catalog = garmin_client.get_exercise_types()
+                categories = catalog.get("categories", {})
+                curated = {
+                    "count": len(categories),
+                    "categories": [
+                        {
+                            "key": key,
+                            "display_name": val.get("displayName"),
+                            "exercise_count": len(val.get("exercises", {})),
+                        }
+                        for key, val in categories.items()
+                    ],
+                    "hint": "Call get_exercise_types(category=<key>) for a category's exercises.",
+                }
+                return json.dumps(curated, indent=2)
+
+            cat = garmin_client.get_exercise_types(category)
+            exercises = cat.get("exercises", {})
+            curated = {
+                "category": category.upper(),
+                "display_name": cat.get("displayName"),
+                "count": len(exercises),
+                "exercises": [
+                    {
+                        "exercise_name": key,
+                        "display_name": val.get("displayName"),
+                        "primary_muscles": val.get("primaryMuscles", []),
+                        "secondary_muscles": val.get("secondaryMuscles", []),
+                        "equipment": val.get("equipment", []),
+                    }
+                    for key, val in exercises.items()
+                ],
+            }
+            return json.dumps(curated, indent=2)
+        except Exception as e:
+            return f"Error retrieving exercise types: {str(e)}"
+
+    @app.tool()
     async def get_workout_by_id(workout_id: Union[int, str]) -> str:
         """Get detailed information for a specific workout
 

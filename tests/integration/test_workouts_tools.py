@@ -2069,3 +2069,76 @@ async def test_update_workout_surfaces_library_error(
     message = result[0][0].text
     assert "Error updating workout" in message
     assert "positive integer" in message
+
+
+# ---------------------------------------------------------------------------
+# get_exercise_types (bundled catalog via library)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_exercise_types_lists_categories(app_with_workouts, mock_garmin_client):
+    """With no category, returns a category summary (keys + counts), not all exercises."""
+    import json as json_module
+
+    mock_garmin_client.get_exercise_types.return_value = {
+        "categories": {
+            "BENCH_PRESS": {"displayName": "Bench Press", "exercises": {"A": {}, "B": {}}},
+            "CURL": {"displayName": "Curl", "exercises": {"C": {}}},
+        }
+    }
+
+    result = await app_with_workouts.call_tool("get_exercise_types", {})
+
+    mock_garmin_client.get_exercise_types.assert_called_once_with()
+    data = json_module.loads(result[0][0].text)
+    assert data["count"] == 2
+    keys = {c["key"]: c["exercise_count"] for c in data["categories"]}
+    assert keys == {"BENCH_PRESS": 2, "CURL": 1}
+
+
+@pytest.mark.asyncio
+async def test_get_exercise_types_single_category(app_with_workouts, mock_garmin_client):
+    """With a category, returns its exercises with muscles + equipment."""
+    import json as json_module
+
+    mock_garmin_client.get_exercise_types.return_value = {
+        "displayName": "Bench Press",
+        "exercises": {
+            "BARBELL_BENCH_PRESS": {
+                "displayName": "Barbell Bench Press",
+                "primaryMuscles": ["CHEST"],
+                "secondaryMuscles": ["TRICEPS"],
+                "equipment": ["BARBELL"],
+            }
+        },
+    }
+
+    result = await app_with_workouts.call_tool(
+        "get_exercise_types", {"category": "bench_press"}
+    )
+
+    mock_garmin_client.get_exercise_types.assert_called_once_with("bench_press")
+    data = json_module.loads(result[0][0].text)
+    assert data["category"] == "BENCH_PRESS"
+    assert data["count"] == 1
+    ex = data["exercises"][0]
+    assert ex["exercise_name"] == "BARBELL_BENCH_PRESS"
+    assert ex["primary_muscles"] == ["CHEST"]
+    assert ex["equipment"] == ["BARBELL"]
+
+
+@pytest.mark.asyncio
+async def test_get_exercise_types_unknown_category_surfaces_error(
+    app_with_workouts, mock_garmin_client
+):
+    """A library ValueError (unknown category) surfaces as an error string."""
+    mock_garmin_client.get_exercise_types.side_effect = ValueError(
+        "unknown exercise category: 'NOPE'"
+    )
+
+    result = await app_with_workouts.call_tool(
+        "get_exercise_types", {"category": "NOPE"}
+    )
+
+    assert "Error retrieving exercise types" in result[0][0].text
+    assert "unknown exercise category" in result[0][0].text
