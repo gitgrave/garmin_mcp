@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from garminconnect import (
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
+    GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
 )
 
@@ -50,10 +51,10 @@ class TestGarminProxy:
         assert "unreachable" in str(exc.value)
 
     def test_404_maps_to_not_found_not_unreachable(self):
-        # The library raises GarminConnectConnectionError for a missing resource
-        # (e.g. deleting an already-deleted workout) with an "API Error 404" message.
+        # The library raises GarminConnectNotFoundError for a missing resource
+        # (e.g. deleting an already-deleted workout).
         proxy = self._proxy(
-            delete_workout=GarminConnectConnectionError(
+            delete_workout=GarminConnectNotFoundError(
                 "API Error 404 - {'message': None, 'error': 'NotFoundException'}"
             )
         )
