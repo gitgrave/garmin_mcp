@@ -15,6 +15,11 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_SYSTEM_PYTHON=1
 
+# git is required to install the garminconnect fork via its git ref
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy dependency files and README first for better layer caching
 COPY pyproject.toml README.md ./
 
