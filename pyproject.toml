@@ -13,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "python-dotenv==1.2.2",
-    "garminconnect @ git+https://github.com/gitgrave/python-garminconnect@c371ff4683e71b5cfa7982f79be6419c98f6f0ee",
+    "garminconnect @ git+https://github.com/gitgrave/python-garminconnect@5d52a597294b43b0e8a08cc8f72f125a4780a03e",
     "requests==2.33.0",
     "mcp>=1.28.1",
     "fitparse>=1.2.0",

@@ -540,51 +540,50 @@ def register_tools(app):
         """List Garmin's strength-exercise catalog for building strength workouts.
 
         Returns the valid `category` and `exerciseName` keys accepted by
-        upload_workout / create_strength_workout, plus each exercise's display
-        name, target muscles, and required equipment.
+        upload_workout / create_strength_workout, with each exercise's display
+        name. (Target muscles and equipment are omitted — the model can infer
+        those from the exercise name.)
 
         Call with no argument first to get the list of categories (with exercise
         counts), then pass a specific category to get its exercises — the full
         catalog is large (~1500 exercises), so it is only expanded per category.
+
+        Backed by the bundled catalog in `garminconnect.exercises`.
 
         Args:
             category: Category key (e.g. "BENCH_PRESS", case-insensitive). Omit
                 to list all categories.
         """
         try:
+            from garminconnect import exercises as gc_exercises
+
             if category is None:
-                catalog = garmin_client.get_exercise_types()
-                categories = catalog.get("categories", {})
+                counts: dict[str, int] = {}
+                for entry in gc_exercises.EXERCISES:
+                    key = entry["category"]
+                    counts[key] = counts.get(key, 0) + 1
                 curated = {
-                    "count": len(categories),
+                    "count": len(gc_exercises.CATEGORIES),
                     "categories": [
-                        {
-                            "key": key,
-                            "display_name": val.get("displayName"),
-                            "exercise_count": len(val.get("exercises", {})),
-                        }
-                        for key, val in categories.items()
+                        {"key": key, "exercise_count": counts.get(key, 0)}
+                        for key in gc_exercises.CATEGORIES
                     ],
                     "hint": "Call get_exercise_types(category=<key>) for a category's exercises.",
                 }
                 return json.dumps(curated, indent=2)
 
-            cat = garmin_client.get_exercise_types(category)
-            exercises = cat.get("exercises", {})
+            key = category.upper()
+            if key not in gc_exercises.CATEGORIES:
+                return f"Error retrieving exercise types: unknown category '{category}'"
+            exercises = [
+                {"exercise_name": e["exercise"], "display_name": e["name"]}
+                for e in gc_exercises.EXERCISES
+                if e["category"] == key
+            ]
             curated = {
-                "category": category.upper(),
-                "display_name": cat.get("displayName"),
+                "category": key,
                 "count": len(exercises),
-                "exercises": [
-                    {
-                        "exercise_name": key,
-                        "display_name": val.get("displayName"),
-                        "primary_muscles": val.get("primaryMuscles", []),
-                        "secondary_muscles": val.get("secondaryMuscles", []),
-                        "equipment": val.get("equipment", []),
-                    }
-                    for key, val in exercises.items()
-                ],
+                "exercises": exercises,
             }
             return json.dumps(curated, indent=2)
         except Exception as e:
