@@ -9,7 +9,7 @@ from garminconnect import (
     GarminConnectTooManyRequestsError,
 )
 
-from garmin_mcp import _GarminProxy
+from garmin_mcp import _GarminProxy, GarminNotFoundError, GarminClientError
 
 
 class TestGarminProxy:
@@ -46,6 +46,33 @@ class TestGarminProxy:
 
     def test_connection_error_message_is_actionable(self):
         proxy = self._proxy(get_steps_data=GarminConnectConnectionError("timeout"))
+        exc = pytest.raises(GarminConnectConnectionError, proxy.get_steps_data)
+        assert "unreachable" in str(exc.value)
+
+    def test_404_maps_to_not_found_not_unreachable(self):
+        # The library raises GarminConnectConnectionError for a missing resource
+        # (e.g. deleting an already-deleted workout) with an "API Error 404" message.
+        proxy = self._proxy(
+            delete_workout=GarminConnectConnectionError(
+                "API Error 404 - {'message': None, 'error': 'NotFoundException'}"
+            )
+        )
+        exc = pytest.raises(GarminNotFoundError, proxy.delete_workout, 123)
+        assert "not found" in str(exc.value).lower()
+        assert "unreachable" not in str(exc.value)
+
+    def test_other_4xx_surfaces_status_not_unreachable(self):
+        proxy = self._proxy(
+            get_workout_by_id=GarminConnectConnectionError("API Error 400 - bad request")
+        )
+        exc = pytest.raises(GarminClientError, proxy.get_workout_by_id, 1)
+        assert "HTTP 400" in str(exc.value)
+        assert "unreachable" not in str(exc.value)
+
+    def test_5xx_still_treated_as_unreachable(self):
+        proxy = self._proxy(
+            get_steps_data=GarminConnectConnectionError("API Error 503 - unavailable")
+        )
         exc = pytest.raises(GarminConnectConnectionError, proxy.get_steps_data)
         assert "unreachable" in str(exc.value)
 

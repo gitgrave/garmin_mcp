@@ -3,6 +3,7 @@ Modular MCP Server for Garmin Connect Data
 """
 
 import os
+import re
 import sys
 import base64
 
@@ -107,6 +108,22 @@ disabled_tools = _parse_tool_set(os.getenv("GARMIN_DISABLED_TOOLS"))
 _VALID_TRANSPORTS = ("stdio", "streamable-http", "sse")
 
 
+class GarminNotFoundError(Exception):
+    """A requested Garmin resource does not exist (HTTP 404).
+
+    Distinct from a connectivity failure — e.g. deleting an already-deleted
+    workout, or fetching an id that isn't there.
+    """
+
+
+class GarminClientError(Exception):
+    """Garmin rejected the request with a non-404 4xx client error.
+
+    A deterministic, caller-actionable failure (bad request, forbidden, …) —
+    not a network/connectivity problem.
+    """
+
+
 class _GarminProxy:
     """Wraps the Garmin client to translate known runtime exceptions into clear messages.
 
@@ -129,8 +146,25 @@ class _GarminProxy:
         ),
     }
 
+    # The library raises GarminConnectConnectionError for *all* HTTP failures,
+    # including 4xx client errors, with messages like "API Error 404 - ...".
+    _STATUS_RE = re.compile(r"(?:API Error|Error|HTTP)\s*(\d{3})")
+
     def __init__(self, client):
         self._client = client
+
+    @classmethod
+    def _status_code(cls, exc):
+        """Best-effort HTTP status from a Garmin exception (attr or message)."""
+        status = getattr(exc, "status_code", None)
+        if isinstance(status, int):
+            return status
+        resp = getattr(exc, "response", None)
+        status = getattr(resp, "status_code", None)
+        if isinstance(status, int):
+            return status
+        match = cls._STATUS_RE.search(str(exc))
+        return int(match.group(1)) if match else None
 
     def __getattr__(self, name):
         attr = getattr(self._client, name)
@@ -141,6 +175,19 @@ class _GarminProxy:
             try:
                 return attr(*args, **kwargs)
             except tuple(self._MESSAGES) as exc:
+                # A 4xx is a deterministic client error, not "unreachable".
+                # Surface it accurately instead of the blanket network message.
+                if isinstance(exc, GarminConnectConnectionError):
+                    status = self._status_code(exc)
+                    if status == 404:
+                        raise GarminNotFoundError(
+                            "Not found on Garmin Connect: the requested item "
+                            "does not exist (it may have already been deleted)."
+                        ) from None
+                    if status is not None and 400 <= status < 500:
+                        raise GarminClientError(
+                            f"Garmin Connect rejected the request (HTTP {status})."
+                        ) from None
                 for exc_type, msg in self._MESSAGES.items():
                     if isinstance(exc, exc_type):
                         error_details = str(exc)
