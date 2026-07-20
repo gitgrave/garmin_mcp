@@ -10,7 +10,7 @@ import base64
 import requests
 from mcp.server.fastmcp import FastMCP
 
-from garminconnect import Garmin, GarminConnectAuthenticationError, GarminConnectConnectionError, GarminConnectTooManyRequestsError
+from garminconnect import Garmin, GarminConnectAuthenticationError, GarminConnectConnectionError, GarminConnectNotFoundError, GarminConnectTooManyRequestsError
 
 # Import all modules
 from garmin_mcp import activity_management
@@ -173,16 +173,18 @@ class _GarminProxy:
         def _call(*args, **kwargs):
             try:
                 return attr(*args, **kwargs)
+            except GarminConnectNotFoundError:
+                # The library types 404s distinctly (subclass of the connection
+                # error). Surface a clear not-found rather than "unreachable".
+                raise GarminNotFoundError(
+                    "Not found on Garmin Connect: the requested item does not "
+                    "exist (it may have already been deleted)."
+                ) from None
             except tuple(self._MESSAGES) as exc:
-                # A 4xx is a deterministic client error, not "unreachable".
-                # Surface it accurately instead of the blanket network message.
+                # Other 4xx are deterministic client errors, not connectivity
+                # failures — surface the status instead of the blanket message.
                 if isinstance(exc, GarminConnectConnectionError):
                     status = self._status_code(exc)
-                    if status == 404:
-                        raise GarminNotFoundError(
-                            "Not found on Garmin Connect: the requested item "
-                            "does not exist (it may have already been deleted)."
-                        ) from None
                     if status is not None and 400 <= status < 500:
                         raise GarminClientError(
                             f"Garmin Connect rejected the request (HTTP {status})."
