@@ -28,6 +28,7 @@ from garmin_mcp import nutrition
 from garmin_mcp import workout_builders
 from garmin_mcp import courses
 from garmin_mcp import activity_analysis
+from garmin_mcp import auth
 
 
 def is_interactive_terminal() -> bool:
@@ -208,6 +209,21 @@ class _ToolFilter:
 # ---------------------------------------------------------------------------
 
 
+class _UnauthenticatedClient:
+    """Stand-in used before login. Any Garmin call raises a clear, actionable error.
+
+    Lets the server start without tokens so the garmin_login tool is reachable;
+    all other tools report that a login is required rather than crashing.
+    """
+
+    def __getattr__(self, name):
+        def _needs_login(*args, **kwargs):
+            raise GarminConnectAuthenticationError(
+                "Not logged in to Garmin Connect. Call garmin_login(email, password) first."
+            )
+        return _needs_login
+
+
 def init_api(email, password):
     """Initialize Garmin API with your credentials."""
     import io
@@ -355,33 +371,50 @@ def main():
         print(str(exc), file=sys.stderr)
         sys.exit(1)
 
-    # Initialize Garmin client
-    garmin_client = init_api(email, password)
-    if not garmin_client:
-        print("Failed to initialize Garmin Connect client. Exiting.", file=sys.stderr)
-        return
+    # All tool modules that hold a `garmin_client` global via configure().
+    modules = [
+        activity_management, health_wellness, user_profile, devices,
+        gear_management, weight_management, challenges, training, workouts,
+        data_management, womens_health, nutrition, workout_builders, courses,
+        activity_analysis,
+    ]
 
-    print("Garmin Connect client initialized successfully.", file=sys.stderr)
+    def _apply_authenticated(garmin):
+        """Point every module at a live, proxy-wrapped Garmin client."""
+        proxy = _GarminProxy(garmin)
+        for module in modules:
+            module.configure(proxy)
 
-    # Wrap client so runtime auth/rate-limit errors surface as clear messages
-    garmin_client = _GarminProxy(garmin_client)
+    def _apply_unauthenticated():
+        """Point every module at the sentinel so calls report 'login required'."""
+        sentinel = _UnauthenticatedClient()
+        for module in modules:
+            module.configure(sentinel)
 
-    # Configure all modules with the Garmin client
-    activity_management.configure(garmin_client)
-    health_wellness.configure(garmin_client)
-    user_profile.configure(garmin_client)
-    devices.configure(garmin_client)
-    gear_management.configure(garmin_client)
-    weight_management.configure(garmin_client)
-    challenges.configure(garmin_client)
-    training.configure(garmin_client)
-    workouts.configure(garmin_client)
-    data_management.configure(garmin_client)
-    womens_health.configure(garmin_client)
-    nutrition.configure(garmin_client)
-    workout_builders.configure(garmin_client)
-    courses.configure(garmin_client)
-    activity_analysis.configure(garmin_client)
+    # Initialize Garmin client. Unlike before, a missing/expired token store no
+    # longer aborts startup — the server comes up unauthenticated so the
+    # garmin_login tool is reachable and can populate the token store at runtime.
+    raw_client = init_api(email, password)
+    if raw_client:
+        _apply_authenticated(raw_client)
+        print("Garmin Connect client initialized successfully.", file=sys.stderr)
+    else:
+        _apply_unauthenticated()
+        print(
+            "Garmin not authenticated. Use the garmin_login tool to log in; "
+            "tokens will be saved to the token store.",
+            file=sys.stderr,
+        )
+
+    # Wire the runtime auth tools to the token store and client-swap callbacks.
+    auth.configure_auth(
+        tokenstore=tokenstore,
+        tokenstore_base64=tokenstore_base64,
+        is_cn=is_cn,
+        apply_authenticated=_apply_authenticated,
+        apply_unauthenticated=_apply_unauthenticated,
+        initial_client=raw_client,
+    )
 
     # Create the MCP app, wrapped so the env-var filter can drop tools.
     # host/port only matter for the HTTP transports; stdio ignores them.
@@ -408,6 +441,7 @@ def main():
     app = workout_builders.register_tools(app)
     app = courses.register_tools(app)
     app = activity_analysis.register_tools(app)
+    app = auth.register_tools(app)
 
     # Register resources (workout templates)
     app = workout_templates.register_resources(app)

@@ -285,6 +285,25 @@ This saves OAuth tokens to `~/.garminconnect`. After that the server works witho
 
 > **Note:** Tokens are valid for approximately 6 months. Re-run `garmin-mcp-auth` when they expire.
 
+### Logging in at runtime (no pre-auth)
+
+The server also exposes auth tools, so a client can log in without the CLI. If
+the token store is empty the server still starts (unauthenticated) — every data
+tool reports "login required" until you authenticate:
+
+- **`garmin_login(email, password)`** — obtains and stores OAuth tokens. Returns
+  `{"status": "mfa_required"}` if Garmin needs a code.
+- **`garmin_login_mfa(mfa_code)`** — completes an MFA login with the emailed/SMS code.
+- **`garmin_auth_status()`** — whether a session is active (and the account name).
+- **`garmin_logout()`** — deletes stored tokens and drops the session.
+
+On success, tokens are written to `~/.garminconnect` (0600) and every tool starts
+using the session immediately — no restart.
+
+> **Security:** the password is used only to mint tokens and is never stored, but
+> it does transit the MCP transport. Use only over a trusted/self-hosted transport,
+> and inject credentials at the client/application layer so they never reach the LLM.
+
 ### Build the `.dxt` yourself
 
 ```bash
