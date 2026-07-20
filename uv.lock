@@ -271,7 +271,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fitparse", specifier = ">=1.2.0" },
-    { name = "garminconnect", git = "https://github.com/gitgrave/python-garminconnect?rev=5d52a597294b43b0e8a08cc8f72f125a4780a03e" },
+    { name = "garminconnect", git = "https://github.com/gitgrave/python-garminconnect?rev=b27257da85b0b8fe1b6d578b1a093cbb8669b005" },
     { name = "mcp", specifier = ">=1.23.0" },
     { name = "python-dotenv", specifier = "==1.2.2" },
     { name = "requests", specifier = "==2.33.0" },
@@ -288,7 +288,7 @@ dev = [
 [[package]]
 name = "garminconnect"
 version = "0.3.6"
-source = { git = "https://github.com/gitgrave/python-garminconnect?rev=5d52a597294b43b0e8a08cc8f72f125a4780a03e#5d52a597294b43b0e8a08cc8f72f125a4780a03e" }
+source = { git = "https://github.com/gitgrave/python-garminconnect?rev=b27257da85b0b8fe1b6d578b1a093cbb8669b005#b27257da85b0b8fe1b6d578b1a093cbb8669b005" }
 dependencies = [
     { name = "curl-cffi" },
     { name = "requests" },
