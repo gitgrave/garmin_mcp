@@ -4,9 +4,7 @@
 
 This Model Context Protocol (MCP) server connects to Garmin Connect and exposes your fitness and health data to Claude and other MCP-compatible clients.
 
-Garmin's API is accessed via the awesome [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library. This project uses a [gitgrave fork](https://github.com/gitgrave/python-garminconnect) of v0.3.6 that adds a native `update_workout` method (see "Editing a workout in place" below); everything else tracks upstream. Requires Python 3.12+ (the library's floor since 0.3.3).
-
-> **Dev note:** `[tool.uv.sources]` in `pyproject.toml` currently points `garminconnect` at a **local editable checkout** of the fork (`../python-garminconnect`, a sibling directory). Clone the fork next to this repo, or swap that source for a git tag / PyPI release once the `update_workout` change is upstreamed.
+Garmin's API is accessed via the awesome [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.7), which now upstreams `update_workout`, `GarminConnectNotFoundError`, and the strength-exercise catalog — so this project depends on the stock PyPI release (no fork). Requires Python 3.12+ (the library's floor since 0.3.3).
 
 ## Features
 
@@ -27,7 +25,7 @@ Garmin's API is accessed via the awesome [python-garminconnect](https://github.c
 
 ### Tool Coverage
 
-This MCP server implements **110+ tools** covering ~90% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.6, gitgrave fork):
+This MCP server implements **110+ tools** covering ~90% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.7):
 
 - ✅ Activity Management (20 tools) - includes write tools for type, description, event type, perceived effort, and feel
 - ✅ Health & Wellness (31 tools) - includes custom lightweight summary tools
@@ -157,7 +155,7 @@ Returns: `{"status": "success", "workout_id": 1234567890, ...}`
 
 ### `get_exercise_types`
 
-Lists Garmin's strength-exercise catalog (~1500 exercises across 47 categories) so you can build strength steps with valid `category` / `exerciseName` keys. Call with no argument for the category list, then pass a `category` (e.g. `"BENCH_PRESS"`) to get its exercises with display name, target muscles, and required equipment. Backed by data bundled in the `garminconnect` fork (regenerated via its `scripts/refresh_exercises.py`); no extra auth.
+Lists Garmin's strength-exercise catalog (~1500 exercises across 47 categories) so you can build strength steps with valid `category` / `exerciseName` keys. Call with no argument for the category list, then pass a `category` (e.g. `"BENCH_PRESS"`) to get its exercises with display names. Backed by the catalog bundled in the `garminconnect` library (`garminconnect.exercises`); no extra auth.
 
 ### `schedule_week`
 

@@ -2,9 +2,6 @@
 requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [project]
 name = "garmin-mcp"
 version = "0.1.0"
@@ -13,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "python-dotenv==1.2.2",
-    "garminconnect @ git+https://github.com/gitgrave/python-garminconnect@b27257da85b0b8fe1b6d578b1a093cbb8669b005",
+    "garminconnect==0.3.7",
     "requests==2.33.0",
     "mcp>=1.28.1",
     "fitparse>=1.2.0",
